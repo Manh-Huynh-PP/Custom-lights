@@ -1,6 +1,5 @@
 # Custom Lights
 
-![Custom Lights Logo](https://via.placeholder.com/150)
 
 **Professional Lighting Setup Made Easy in Blender.**
 
@@ -11,7 +10,7 @@ Custom Lights is a smart addon designed to streamline and accelerate your lighti
 - **Get the Addon:** [Gumroad](https://manhdesigns.gumroad.com/l/customlights)
 - **Support Development:** [Buy Me a Coffee](https://coffee.manhhuynh.work)
 
-### 🎥 [Watch Demo Video](https://youtube.com/shorts/5DDAgP-XHZY)
+### 🎥 [Watch Demo Video](https://youtube.com/shorts/nJIB-_cgxGs)
 
 ---
 
