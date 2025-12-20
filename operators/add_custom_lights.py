@@ -74,20 +74,21 @@ class LIGHTING_OT_AddTrackerLights(bpy.types.Operator):
         layout.prop(self, "light_height")
         layout.prop(self, "light_color")
 
-class LIGHTING_OT_AddCustomLightPlane(bpy.types.Operator):
-    """Create a custom light plane with an adjustable shader and collection management."""
-    bl_idname = "lighting.add_custom_light_plane"
-    bl_label = "Gradient Light Plane"
+class LIGHTING_OT_AddLinearGradientPlane(bpy.types.Operator):
+    """Create a linear gradient light plane."""
+    bl_idname = "lighting.add_linear_gradient_plane"
+    bl_label = "Linear Gradient Plane"
     bl_options = {'REGISTER', 'UNDO'}
 
     emission_color: bpy.props.FloatVectorProperty(name="Emission Color", subtype='COLOR', size=4, default=(1.0, 1.0, 1.0, 1.0))
-    material_option: bpy.props.EnumProperty(name="Material Option", items=[('LINEAR', "Linear Light", ""), ('SPHERICAL', "Spherical Light", "")], default='LINEAR')
     plane_width: bpy.props.FloatProperty(name="Plane Width", default=2.0, min=0.1)
     plane_length: bpy.props.FloatProperty(name="Plane Length", default=2.0, min=0.1)
     strength: bpy.props.FloatProperty(name="Strength", default=1.0, min=0.0)
     flip: bpy.props.BoolProperty(name="Flip ColorRamp", default=False)
     rotate: bpy.props.BoolProperty(name="Rotate", default=False)
     camera_visibility: bpy.props.BoolProperty(name="Ray Camera Visibility", default=True)
+    transparent_black: bpy.props.BoolProperty(name="Transparent Black Gradient", default=False,
+        description="Make black parts of gradient transparent")
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=350)
@@ -95,23 +96,22 @@ class LIGHTING_OT_AddCustomLightPlane(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "emission_color")
-        layout.prop(self, "material_option")
-        if self.material_option == 'LINEAR':
-            layout.prop(self, "flip")
-            layout.prop(self, "rotate")
+        layout.prop(self, "flip")
+        layout.prop(self, "rotate")
         layout.prop(self, "plane_width")
         layout.prop(self, "plane_length")
         layout.prop(self, "strength")
         layout.prop(self, "camera_visibility")
+        layout.prop(self, "transparent_black")
 
     def execute(self, context):
         bpy.ops.mesh.primitive_plane_add(align='WORLD', location=context.scene.cursor.location)
         plane_obj = context.active_object
-        plane_obj.name = "Light_Plane"
+        plane_obj.name = "Linear_Gradient_Plane"
         plane_obj.scale.x = self.plane_width
         plane_obj.scale.y = self.plane_length
 
-        mat = bpy.data.materials.new(name="LightPlane_Mat")
+        mat = bpy.data.materials.new(name="LinearGradient_Mat")
         mat.use_nodes = True
         nt = mat.node_tree
         nodes = nt.nodes
@@ -120,12 +120,10 @@ class LIGHTING_OT_AddCustomLightPlane(bpy.types.Operator):
 
         tex_coord = nodes.new(type="ShaderNodeTexCoord")
         mapping = nodes.new(type="ShaderNodeMapping")
+        separate_xyz = nodes.new(type="ShaderNodeSeparateXYZ")
         gradient = nodes.new(type="ShaderNodeTexGradient")
         color_ramp = nodes.new(type="ShaderNodeValToRGB")
-        # Use RGBToBW to convert a color to a single value (luminance)
-        # which we can multiply to drive emission strength. Some Blender
-        # builds may not expose the same node names; try RGBToBW and
-        # fall back to SeparateRGB if necessary.
+        
         try:
             luminance_node = nodes.new(type="ShaderNodeRGBToBW")
             luminance_output_name = "Val"
@@ -141,43 +139,142 @@ class LIGHTING_OT_AddCustomLightPlane(bpy.types.Operator):
         math_node.operation = 'MULTIPLY'
         math_node.inputs[1].default_value = self.strength
         emission.inputs["Color"].default_value = self.emission_color
+        gradient.gradient_type = 'EASING'
 
         links.new(tex_coord.outputs["UV"], mapping.inputs[0])
+        links.new(mapping.outputs[0], separate_xyz.inputs[0])
+        
+        if self.rotate:
+            links.new(separate_xyz.outputs["Y"], gradient.inputs[0])
+        else:
+            links.new(separate_xyz.outputs["X"], gradient.inputs[0])
+        
+        links.new(gradient.outputs["Fac"], color_ramp.inputs["Fac"])
+        
+        if not self.flip:
+            color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
+            color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+        else:
+            color_ramp.color_ramp.elements[0].color = (1, 1, 1, 1)
+            color_ramp.color_ramp.elements[1].color = (0, 0, 0, 1)
+
         links.new(color_ramp.outputs["Color"], luminance_node.inputs[0])
         links.new(luminance_node.outputs[luminance_output_name], math_node.inputs[0])
         links.new(math_node.outputs["Value"], emission.inputs["Strength"])
-        links.new(emission.outputs["Emission"], mat_output.inputs["Surface"])
 
-        if self.material_option == 'LINEAR':
-            separate_xyz = nodes.new(type="ShaderNodeSeparateXYZ")
-            links.new(mapping.outputs[0], separate_xyz.inputs[0])
-            gradient.gradient_type = 'EASING'
-            if self.rotate:
-                links.new(separate_xyz.outputs["Y"], gradient.inputs[0])
-            else:
-                links.new(separate_xyz.outputs["X"], gradient.inputs[0])
-            
-            if not self.flip:
-                color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
-                color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
-            else:
-                color_ramp.color_ramp.elements[0].color = (1, 1, 1, 1)
-                color_ramp.color_ramp.elements[1].color = (0, 0, 0, 1)
-        else: # SPHERICAL
-            mapping.inputs["Location"].default_value = (-0.5, -0.5, 0)
-            gradient.gradient_type = 'SPHERICAL'
-            links.new(mapping.outputs[0], gradient.inputs[0])
-            color_ramp.color_ramp.elements[0].position = 0.5
-            color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
-            color_ramp.color_ramp.elements[1].position = 1.0
-            color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
-
-        links.new(gradient.outputs["Fac"], color_ramp.inputs["Fac"])
+        if self.transparent_black:
+            # Add Transparent BSDF and Mix Shader
+            transparent = nodes.new(type="ShaderNodeBsdfTransparent")
+            mix_shader = nodes.new(type="ShaderNodeMixShader")
+            # Color from ColorRamp drives mix factor (black=0=transparent, white=1=emission)
+            links.new(color_ramp.outputs["Color"], mix_shader.inputs["Fac"])
+            links.new(transparent.outputs["BSDF"], mix_shader.inputs[1])
+            links.new(emission.outputs["Emission"], mix_shader.inputs[2])
+            links.new(mix_shader.outputs["Shader"], mat_output.inputs["Surface"])
+        else:
+            links.new(emission.outputs["Emission"], mat_output.inputs["Surface"])
         
         plane_obj.data.materials.append(mat)
         plane_obj.visible_camera = self.camera_visibility
         utils.add_object_to_collection(context, plane_obj, "Gradient Light Planes")
-        self.report({'INFO'}, "Gradient Light Plane Added!")
+        self.report({'INFO'}, "Linear Gradient Plane Added!")
+        return {'FINISHED'}
+
+
+class LIGHTING_OT_AddSphereGradientPlane(bpy.types.Operator):
+    """Create a spherical gradient light plane."""
+    bl_idname = "lighting.add_sphere_gradient_plane"
+    bl_label = "Sphere Gradient Plane"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    emission_color: bpy.props.FloatVectorProperty(name="Emission Color", subtype='COLOR', size=4, default=(1.0, 1.0, 1.0, 1.0))
+    plane_width: bpy.props.FloatProperty(name="Plane Width", default=2.0, min=0.1)
+    plane_length: bpy.props.FloatProperty(name="Plane Length", default=2.0, min=0.1)
+    strength: bpy.props.FloatProperty(name="Strength", default=1.0, min=0.0)
+    camera_visibility: bpy.props.BoolProperty(name="Ray Camera Visibility", default=True)
+    transparent_black: bpy.props.BoolProperty(name="Transparent Black Gradient", default=False,
+        description="Make black parts of gradient transparent")
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=350)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "emission_color")
+        layout.prop(self, "plane_width")
+        layout.prop(self, "plane_length")
+        layout.prop(self, "strength")
+        layout.prop(self, "camera_visibility")
+        layout.prop(self, "transparent_black")
+
+    def execute(self, context):
+        bpy.ops.mesh.primitive_plane_add(align='WORLD', location=context.scene.cursor.location)
+        plane_obj = context.active_object
+        plane_obj.name = "Sphere_Gradient_Plane"
+        plane_obj.scale.x = self.plane_width
+        plane_obj.scale.y = self.plane_length
+
+        mat = bpy.data.materials.new(name="SphereGradient_Mat")
+        mat.use_nodes = True
+        nt = mat.node_tree
+        nodes = nt.nodes
+        links = nt.links
+        for node in list(nodes): nodes.remove(node)
+
+        tex_coord = nodes.new(type="ShaderNodeTexCoord")
+        mapping = nodes.new(type="ShaderNodeMapping")
+        gradient = nodes.new(type="ShaderNodeTexGradient")
+        color_ramp = nodes.new(type="ShaderNodeValToRGB")
+        
+        try:
+            luminance_node = nodes.new(type="ShaderNodeRGBToBW")
+            luminance_output_name = "Val"
+        except Exception:
+            luminance_node = nodes.new(type="ShaderNodeSeparateRGB")
+            luminance_output_name = "R"
+
+        math_node = nodes.new(type="ShaderNodeMath")
+        emission = nodes.new(type="ShaderNodeEmission")
+        mat_output = nodes.new(type="ShaderNodeOutputMaterial")
+
+        color_ramp.color_ramp.interpolation = 'EASE'
+        math_node.operation = 'MULTIPLY'
+        math_node.inputs[1].default_value = self.strength
+        emission.inputs["Color"].default_value = self.emission_color
+        
+        # Spherical gradient setup
+        mapping.inputs["Location"].default_value = (-0.5, -0.5, 0)
+        gradient.gradient_type = 'SPHERICAL'
+
+        links.new(tex_coord.outputs["UV"], mapping.inputs[0])
+        links.new(mapping.outputs[0], gradient.inputs[0])
+        links.new(gradient.outputs["Fac"], color_ramp.inputs["Fac"])
+        
+        color_ramp.color_ramp.elements[0].position = 0.5
+        color_ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
+        color_ramp.color_ramp.elements[1].position = 1.0
+        color_ramp.color_ramp.elements[1].color = (1, 1, 1, 1)
+
+        links.new(color_ramp.outputs["Color"], luminance_node.inputs[0])
+        links.new(luminance_node.outputs[luminance_output_name], math_node.inputs[0])
+        links.new(math_node.outputs["Value"], emission.inputs["Strength"])
+
+        if self.transparent_black:
+            # Add Transparent BSDF and Mix Shader
+            transparent = nodes.new(type="ShaderNodeBsdfTransparent")
+            mix_shader = nodes.new(type="ShaderNodeMixShader")
+            # Color from ColorRamp drives mix factor (black=0=transparent, white=1=emission)
+            links.new(color_ramp.outputs["Color"], mix_shader.inputs["Fac"])
+            links.new(transparent.outputs["BSDF"], mix_shader.inputs[1])
+            links.new(emission.outputs["Emission"], mix_shader.inputs[2])
+            links.new(mix_shader.outputs["Shader"], mat_output.inputs["Surface"])
+        else:
+            links.new(emission.outputs["Emission"], mat_output.inputs["Surface"])
+        
+        plane_obj.data.materials.append(mat)
+        plane_obj.visible_camera = self.camera_visibility
+        utils.add_object_to_collection(context, plane_obj, "Gradient Light Planes")
+        self.report({'INFO'}, "Sphere Gradient Plane Added!")
         return {'FINISHED'}
 
 class LIGHTING_OT_AddTranslucentLight(bpy.types.Operator):
@@ -594,13 +691,222 @@ class LIGHTING_OT_ImportImageGobo(bpy.types.Operator):
         self.report({'ERROR'}, "Failed to import Image_Gobo")
         return {'CANCELLED'}
 
+
+class LIGHTING_OT_ImportPlaneGoboNoise(bpy.types.Operator):
+    """Import Plane Gobo Noise from DOME_light.blend and parent to active light."""
+    bl_idname = "lighting.import_plane_gobo_noise"
+    bl_label = "Import Plane Gobo Noise"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    distance: bpy.props.FloatProperty(name="Distance Offset", default=0.2, min=0.0)
+    camera_visibility: bpy.props.BoolProperty(name="Visible to Camera", default=False)
+
+    def invoke(self, context, event):
+        active = context.active_object
+        if not active or active.type != 'LIGHT':
+            self.report({'WARNING'}, "Please select an active light!")
+            return {'CANCELLED'}
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def execute(self, context):
+        active = context.active_object
+        if not active or active.type != 'LIGHT':
+            self.report({'WARNING'}, "Please select an active light!")
+            return {'CANCELLED'}
+
+        addon_dir = os.path.dirname(os.path.dirname(__file__))
+        filepath = os.path.join(addon_dir, "DOME_light.blend")
+
+        if not os.path.exists(filepath):
+            self.report({'ERROR'}, f"Library file not found: {filepath}")
+            return {'CANCELLED'}
+
+        # Import object
+        bpy.ops.wm.append(
+            filepath=os.path.join(filepath, "Object", "Plane_Gobo_noise"),
+            directory=os.path.join(filepath, "Object") + os.sep,
+            filename="Plane_Gobo_noise"
+        )
+
+        obj = bpy.data.objects.get("Plane_Gobo_noise")
+        if obj:
+            # Get light world transform
+            depsgraph = context.evaluated_depsgraph_get()
+            active_eval = active.evaluated_get(depsgraph)
+            light_loc = active_eval.matrix_world.translation.copy()
+            light_rot = active_eval.matrix_world.to_euler()
+
+            # Set rotation to match light
+            obj.rotation_euler = light_rot
+
+            # Offset position in local -Z direction
+            local_z = obj.matrix_world.to_quaternion() @ Vector((0, 0, -1))
+            obj.location = light_loc + (local_z * self.distance)
+
+            # Set camera visibility
+            obj.visible_camera = self.camera_visibility
+
+            # Parent to light
+            obj.parent = active
+            obj.matrix_parent_inverse = active.matrix_world.inverted()
+
+            # Add to collection
+            utils.add_object_to_collection(context, obj, "Plane Gobo Lights")
+
+            self.report({'INFO'}, "Plane Gobo Noise added!")
+            return {'FINISHED'}
+
+        self.report({'ERROR'}, "Failed to import Plane_Gobo_noise")
+        return {'CANCELLED'}
+
+
+class LIGHTING_OT_ImportPlaneGoboVoronoise(bpy.types.Operator):
+    """Import Plane Gobo Voronoise from DOME_light.blend and parent to active light."""
+    bl_idname = "lighting.import_plane_gobo_voronoise"
+    bl_label = "Import Plane Gobo Voronoise"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    distance: bpy.props.FloatProperty(name="Distance Offset", default=0.2, min=0.0)
+    camera_visibility: bpy.props.BoolProperty(name="Visible to Camera", default=False)
+
+    def invoke(self, context, event):
+        active = context.active_object
+        if not active or active.type != 'LIGHT':
+            self.report({'WARNING'}, "Please select an active light!")
+            return {'CANCELLED'}
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def execute(self, context):
+        active = context.active_object
+        if not active or active.type != 'LIGHT':
+            self.report({'WARNING'}, "Please select an active light!")
+            return {'CANCELLED'}
+
+        addon_dir = os.path.dirname(os.path.dirname(__file__))
+        filepath = os.path.join(addon_dir, "DOME_light.blend")
+
+        if not os.path.exists(filepath):
+            self.report({'ERROR'}, f"Library file not found: {filepath}")
+            return {'CANCELLED'}
+
+        # Import object
+        bpy.ops.wm.append(
+            filepath=os.path.join(filepath, "Object", "Plane_Gobo_voronoise"),
+            directory=os.path.join(filepath, "Object") + os.sep,
+            filename="Plane_Gobo_voronoise"
+        )
+
+        obj = bpy.data.objects.get("Plane_Gobo_voronoise")
+        if obj:
+            # Get light world transform
+            depsgraph = context.evaluated_depsgraph_get()
+            active_eval = active.evaluated_get(depsgraph)
+            light_loc = active_eval.matrix_world.translation.copy()
+            light_rot = active_eval.matrix_world.to_euler()
+
+            # Set rotation to match light
+            obj.rotation_euler = light_rot
+
+            # Offset position in local -Z direction
+            local_z = obj.matrix_world.to_quaternion() @ Vector((0, 0, -1))
+            obj.location = light_loc + (local_z * self.distance)
+
+            # Set camera visibility
+            obj.visible_camera = self.camera_visibility
+
+            # Parent to light
+            obj.parent = active
+            obj.matrix_parent_inverse = active.matrix_world.inverted()
+
+            # Add to collection
+            utils.add_object_to_collection(context, obj, "Plane Gobo Lights")
+
+            self.report({'INFO'}, "Plane Gobo Voronoise added!")
+            return {'FINISHED'}
+
+        self.report({'ERROR'}, "Failed to import Plane_Gobo_voronoise")
+        return {'CANCELLED'}
+
+
+class LIGHTING_OT_ImportPlaneGoboWave(bpy.types.Operator):
+    """Import Plane Gobo Wave from DOME_light.blend and parent to active light."""
+    bl_idname = "lighting.import_plane_gobo_wave"
+    bl_label = "Import Plane Gobo Wave"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    distance: bpy.props.FloatProperty(name="Distance Offset", default=0.2, min=0.0)
+    camera_visibility: bpy.props.BoolProperty(name="Visible to Camera", default=False)
+
+    def invoke(self, context, event):
+        active = context.active_object
+        if not active or active.type != 'LIGHT':
+            self.report({'WARNING'}, "Please select an active light!")
+            return {'CANCELLED'}
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def execute(self, context):
+        active = context.active_object
+        if not active or active.type != 'LIGHT':
+            self.report({'WARNING'}, "Please select an active light!")
+            return {'CANCELLED'}
+
+        addon_dir = os.path.dirname(os.path.dirname(__file__))
+        filepath = os.path.join(addon_dir, "DOME_light.blend")
+
+        if not os.path.exists(filepath):
+            self.report({'ERROR'}, f"Library file not found: {filepath}")
+            return {'CANCELLED'}
+
+        # Import object
+        bpy.ops.wm.append(
+            filepath=os.path.join(filepath, "Object", "Plane_Gobo_wave"),
+            directory=os.path.join(filepath, "Object") + os.sep,
+            filename="Plane_Gobo_wave"
+        )
+
+        obj = bpy.data.objects.get("Plane_Gobo_wave")
+        if obj:
+            # Get light world transform
+            depsgraph = context.evaluated_depsgraph_get()
+            active_eval = active.evaluated_get(depsgraph)
+            light_loc = active_eval.matrix_world.translation.copy()
+            light_rot = active_eval.matrix_world.to_euler()
+
+            # Set rotation to match light
+            obj.rotation_euler = light_rot
+
+            # Offset position in local -Z direction
+            local_z = obj.matrix_world.to_quaternion() @ Vector((0, 0, -1))
+            obj.location = light_loc + (local_z * self.distance)
+
+            # Set camera visibility
+            obj.visible_camera = self.camera_visibility
+
+            # Parent to light
+            obj.parent = active
+            obj.matrix_parent_inverse = active.matrix_world.inverted()
+
+            # Add to collection
+            utils.add_object_to_collection(context, obj, "Plane Gobo Lights")
+
+            self.report({'INFO'}, "Plane Gobo Wave added!")
+            return {'FINISHED'}
+
+        self.report({'ERROR'}, "Failed to import Plane_Gobo_wave")
+        return {'CANCELLED'}
+
+
 classes = (
     LIGHTING_OT_AddTrackerLights,
-    LIGHTING_OT_AddCustomLightPlane,
+    LIGHTING_OT_AddLinearGradientPlane,
+    LIGHTING_OT_AddSphereGradientPlane,
     LIGHTING_OT_AddTranslucentLight,
     LIGHTING_OT_AddSimpleGodRays,
     LIGHTING_OT_ImportDomeLight,
     LIGHTING_OT_ImportNoiseGobo,
     LIGHTING_OT_ImportImageGobo,
+    LIGHTING_OT_ImportPlaneGoboNoise,
+    LIGHTING_OT_ImportPlaneGoboVoronoise,
+    LIGHTING_OT_ImportPlaneGoboWave,
 
 )

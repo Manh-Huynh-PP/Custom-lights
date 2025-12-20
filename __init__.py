@@ -44,6 +44,26 @@ def register():
         description="Automatically create and place new lights into dedicated collections",
         default=True
     )
+    
+    # Add brightness multiplier property to Collection with update callback
+    def update_brightness(self, context):
+        # Skip if triggered by Apply button
+        if self.get("_skip_update"):
+            return
+        multiplier = self.light_brightness_multiplier
+        if multiplier != 1.0:  # Only apply if not default
+            utils.apply_collection_brightness(self, multiplier)
+    
+    bpy.types.Collection.light_brightness_multiplier = bpy.props.FloatProperty(
+        name="Multiply",
+        description="Multiply brightness of all lights in this collection",
+        default=1.0,
+        min=0.0,
+        soft_max=10.0,
+        step=10,
+        precision=2,
+        update=update_brightness
+    )
 
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -73,6 +93,11 @@ def unregister():
         del bpy.types.Scene.custom_light_auto_collection
     except AttributeError:
         pass # Property was not registered, do nothing
+    
+    try:
+        del bpy.types.Collection.light_brightness_multiplier
+    except AttributeError:
+        pass
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

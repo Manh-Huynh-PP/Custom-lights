@@ -165,6 +165,76 @@ class LIGHTING_OT_ToggleCollectionRender(bpy.types.Operator):
         
         return {'FINISHED'}
 
+
+class LIGHTING_OT_UpdateCollectionBrightness(bpy.types.Operator):
+    """Multiply brightness for all lights in a collection"""
+    bl_idname = "lighting.update_collection_brightness"
+    bl_label = "Collection Brightness"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    collection_name: bpy.props.StringProperty()
+    multiplier: bpy.props.FloatProperty(
+        name="Multiplier",
+        description="Multiply all light brightness by this value",
+        default=1.0, 
+        min=0.0,
+        soft_max=100.0,
+        step=10,
+        precision=2
+    )
+
+    def invoke(self, context, event):
+        self.multiplier = 1.0
+        return context.window_manager.invoke_props_popup(self, event)
+
+    def execute(self, context):
+        if self.collection_name == "MASTER":
+            coll = context.scene.collection
+        else:
+            coll = bpy.data.collections.get(self.collection_name)
+        
+        if not coll:
+            return {'CANCELLED'}
+        
+        # Apply brightness multiplier to all lights (multiplies current values)
+        utils.apply_collection_brightness(coll, self.multiplier)
+        
+        return {'FINISHED'}
+
+
+class LIGHTING_OT_ApplyCollectionBrightness(bpy.types.Operator):
+    """Apply current brightness as new base values and reset slider to 1"""
+    bl_idname = "lighting.apply_collection_brightness"
+    bl_label = "Apply Brightness"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    collection_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        coll = bpy.data.collections.get(self.collection_name)
+        
+        if not coll:
+            return {'CANCELLED'}
+        
+        # Update base values to current energy and reset last_multiplier
+        for obj in coll.objects:
+            if not utils.is_managed_light(obj):
+                continue
+            
+            current = utils.get_light_energy(obj)
+            if current is not None:
+                obj["_base_energy"] = current
+                obj["_last_multiplier"] = 1.0
+        
+        # Reset slider to 1.0 without triggering update
+        coll["_skip_update"] = True
+        coll.light_brightness_multiplier = 1.0
+        if "_skip_update" in coll:
+            del coll["_skip_update"]
+        
+        return {'FINISHED'}
+
+
 classes = (
     LIGHTING_OT_ToggleCollectionCollapse,
     LIGHTING_OT_SelectLight,
@@ -174,4 +244,6 @@ classes = (
     LIGHTING_OT_ToggleRender,
     LIGHTING_OT_ToggleCollectionViewport,
     LIGHTING_OT_ToggleCollectionRender,
+    LIGHTING_OT_UpdateCollectionBrightness,
+    LIGHTING_OT_ApplyCollectionBrightness,
 )

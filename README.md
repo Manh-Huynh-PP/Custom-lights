@@ -16,27 +16,43 @@ Custom Lights is a smart addon designed to streamline and accelerate your lighti
 
 ## What's New in Custom Lights 2.0
 
-We are excited to introduce Custom Lights 2.0, a major update packed with new features and improvements to enhance your experience.
-
 ### 🚀 Blender 5.0 Compatible
 Fully updated and tested to ensure seamless performance with the latest Blender 5.0 release.
 
+### 🌍 World Brightness Control
+Quickly adjust your scene's world/environment brightness directly from the Manage Lights panel.
+
+### 🎚️ Collection Brightness Multiplier
+New slider on each collection header to multiply brightness of all lights in that collection. Click the ✓ button to apply and reset.
+
+### 🎨 Split Gradient Light Plane
+The Gradient Light Plane is now split into two dedicated operators:
+- **Linear Gradient** - Creates linear gradient emission planes
+- **Sphere Gradient** - Creates spherical gradient emission planes
+
+Both include a new **"Transparent Black Gradient"** checkbox that makes black areas of the gradient transparent.
+
+### ✨ Plane Gobo Lights
+Three new plane gobo operators for quick light texture effects:
+- **P.Noise** - Noise-based gobo texture
+- **P.Voronoise** - Voronoi noise pattern
+- **P.Wave** - Wave pattern gobo
+
 ### 🌡️ Accurate Black Body Colors
-We've updated the Black Body color values to align perfectly with Blender's physical light calculations, ensuring realistic and accurate color temperatures for your lights.
+Updated Black Body color values to align perfectly with Blender's physical light calculations.
 
 ### ⚡ Quick Access Shortcut "L"
-Speed up your workflow with the new shortcut! Simply press **"L"** while a light is active to instantly open the parameters popup menu. Adjust settings on the fly without navigating away.
+Press **"L"** while a light is active to instantly open the parameters popup menu.
 
 ### 🌐 Light Dome Updates
-Significant improvements to the Light Dome feature, offering better control and quality for your environmental lighting setups.
+Significant improvements to the Light Dome feature for better environmental lighting.
 
 ### 🔦 Gobo Light Enhancements
-Take your lighting to the next level with updated Gobo features:
 - **Gobo Light Noise:** Add organic variation and texture to your lights.
-- **Image Gobo Light:** Easily project images and patterns for complex lighting effects.
+- **Image Gobo Light:** Project images and patterns for complex lighting effects.
 
 ### 🎨 UI & Manage Light Updates
-The **Manage Light** interface has been revamped. It's now cleaner, more organized, and easier to navigate, giving you a better overview and control of all lights in your scene.
+Revamped **Manage Light** interface - cleaner, more organized, and easier to navigate.
 
 ---
 
@@ -45,25 +61,28 @@ The **Manage Light** interface has been revamped. It's now cleaner, more organiz
 ### 1. Add Base Lights
 Rapidly create standard Blender lights at your cursor's position.
 - **Types:** Point, Sun, Spot, Area (Rectangle/Ellipse).
-- **Auto-Organization:** Automatically groups lights into collections when the "Auto-create collection" option is checked.
+- **Auto-Organization:** Automatically groups lights into collections.
 
 ### 2. Custom Lights & Tools
-Advanced lighting tools to handle complex scenarios with ease.
+Advanced lighting tools for complex scenarios.
 
-- **Tracker Light:** Creates a system where Area lights automatically track an active target object.
-- **Gradient Light Plane:** Generates emissive planes with adjustable linear or spherical gradients.
-- **Translucent Light Plane:** Adds a diffusion plane in front of your active light to soften shadows and create studio-like effects.
-- **Simple God Rays:** Instantly adds volumetric "God Ray" effects to an active Spot light with simple controls for power and noise.
-- **Track to Selected:** Apply a "Track To" constraint to multiple objects, making them all point towards your active target.
-- **Make Emission Mesh:** Convert any mesh object into a light source by applying an emission shader and renaming it for the management panel.
-- **Input Blackbody Color:** Set your light's color using Kelvin temperature values for physical accuracy (approximated RGB conversion).
+- **Tracker Light:** Area lights that automatically track a target object.
+- **Linear/Sphere Gradient Plane:** Emissive planes with adjustable gradients and transparent black option.
+- **Translucent Light Plane:** Diffusion plane to soften shadows and create studio effects.
+- **Simple God Rays:** Volumetric "God Ray" effects for Spot lights.
+- **Plane Gobos:** Quick noise, voronoise, and wave pattern gobos.
+- **Track to Selected:** Apply "Track To" constraint to multiple objects.
+- **Make Emission Mesh:** Convert any mesh into a light source.
+- **Input Blackbody Color:** Set light color using Kelvin temperature values.
 
 ### 3. Manage Lights
 Your command center for all lighting in the scene.
-- **Centralized View:** See all lights and emissive meshes organized by collection (e.g., Point Lights, Tracker Lights).
-- **Direct Control:** Adjust Color, Brightness/Power, and Size/Shape directly from the list.
-- **Selection:** Click names to select lights in the viewport or select entire collections.
-- **Visibility:** Toggle visibility for Viewport, Render, and Camera (for mesh lights).
+- **Centralized View:** All lights and emissive meshes organized by collection.
+- **Collection Brightness:** Multiply brightness of all lights in a collection.
+- **World Brightness:** Control environment lighting strength.
+- **Direct Control:** Adjust Color, Brightness/Power, and Size/Shape from the list.
+- **Selection:** Click names to select lights or entire collections.
+- **Visibility:** Toggle Viewport, Render, and Camera visibility.
 
 ---
 
@@ -72,7 +91,7 @@ Your command center for all lighting in the scene.
 1.  **Install:**
     - Download the `custom_light.zip` file.
     - Open Blender and go to **Edit > Preferences > Add-ons**.
-    - Click **Install...**, select the zip file, and enable the checkbox for "Custom Lights".
+    - Click **Install...**, select the zip file, and enable "Custom Lights".
 
 2.  **Location:**
     - In the 3D Viewport, press **"N"** to open the Sidebar.

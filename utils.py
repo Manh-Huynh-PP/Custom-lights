@@ -192,3 +192,114 @@ def update_emission_color(scene):
                         # Sync color
                         node.inputs["Color"].default_value = (*obj.data.color, 1)
                         break
+
+# Storage for tracking previous multiplier values
+_prev_brightness_multipliers = {}
+
+def update_collection_brightness(scene):
+    """Handler to apply brightness multiplier when it changes."""
+    if not bpy.context.scene:
+        return
+    
+    # Check scene collection
+    scene_coll = bpy.context.scene.collection
+    _check_and_apply_brightness(scene_coll, "MASTER")
+    
+    # Check all other collections
+    for coll in get_all_collections(scene_coll):
+        _check_and_apply_brightness(coll, coll.name)
+
+def _check_and_apply_brightness(coll, coll_key):
+    """Check if multiplier changed and apply if so."""
+    global _prev_brightness_multipliers
+    
+    current = coll.get("brightness_multiplier", 1.0)
+    prev = _prev_brightness_multipliers.get(coll_key, 1.0)
+    
+    if abs(current - prev) > 0.0001:  # Changed
+        _prev_brightness_multipliers[coll_key] = current
+        apply_collection_brightness(coll, current)
+
+def get_world_background_node(world):
+    """Gets the Background node from the world's node tree."""
+    if world and world.use_nodes and world.node_tree:
+        for node in world.node_tree.nodes:
+            if node.type == 'BACKGROUND':
+                return node
+    return None
+
+# ---------------------------------------------------
+# Collection Brightness Helpers
+# ---------------------------------------------------
+
+def get_light_energy(obj):
+    """Get energy/strength value for a light or emission mesh."""
+    if obj.type == 'LIGHT':
+        return obj.data.energy
+    elif obj.type == 'MESH':
+        strength_socket = get_mesh_emission_strength_control(obj)
+        if strength_socket:
+            return strength_socket.default_value
+    return None
+
+def set_light_energy(obj, value):
+    """Set energy/strength value for a light or emission mesh."""
+    if obj.type == 'LIGHT':
+        obj.data.energy = value
+        return True
+    elif obj.type == 'MESH':
+        strength_socket = get_mesh_emission_strength_control(obj)
+        if strength_socket:
+            strength_socket.default_value = value
+            return True
+    return False
+
+def store_base_energy(obj):
+    """Store current energy as base value in custom property."""
+    energy = get_light_energy(obj)
+    if energy is not None:
+        obj["_base_energy"] = energy
+        return True
+    return False
+
+def get_base_energy(obj):
+    """Retrieve stored base energy value, or current energy if not stored."""
+    if "_base_energy" in obj:
+        return obj["_base_energy"]
+    # If not stored, return current energy
+    return get_light_energy(obj)
+
+def apply_collection_brightness(coll, multiplier):
+    """Apply brightness multiplier to all lights in a collection.
+    Detects individual light changes and updates their base before applying.
+    """
+    # Get the last multiplier for this collection
+    last_mult = coll.get("_last_multiplier", 1.0)
+    
+    for obj in coll.objects:
+        if not is_managed_light(obj):
+            continue
+        
+        current = get_light_energy(obj)
+        if current is None:
+            continue
+        
+        # Initialize base if not exists
+        if "_base_energy" not in obj:
+            obj["_base_energy"] = current
+        
+        base = obj.get("_base_energy", current)
+        
+        # Check if user manually changed this light
+        expected = base * last_mult
+        if abs(current - expected) > 0.001:
+            # User changed this light individually, update its base
+            obj["_base_energy"] = current
+            base = current
+        
+        # Apply multiplier from base
+        new_value = base * multiplier
+        set_light_energy(obj, new_value)
+    
+    # Store current multiplier for next comparison
+    coll["_last_multiplier"] = multiplier
