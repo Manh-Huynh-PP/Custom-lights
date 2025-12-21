@@ -10,11 +10,13 @@ Custom Lights is a smart addon designed to streamline and accelerate your lighti
 - **Get the Addon:** [Gumroad](https://manhdesigns.gumroad.com/l/customlights)
 - **Support Development:** [Buy Me a Coffee](https://coffee.manhhuynh.work)
 
-### 🎥 [Watch Demo Video](https://youtube.com/shorts/nJIB-_cgxGs)
+### 🎥 [Watch Version 2.0 Demo](https://youtube.com/shorts/s9AEGNVPpMQ) | [v1 Demo](https://www.youtube.com/shorts/VkU7IYyqykY)
 
 ---
 
 ## What's New in Custom Lights 2.0
+
+### 🎥 [Watch v2.0 Features Demo](https://youtube.com/shorts/s9AEGNVPpMQ)
 
 ### 🚀 Blender 5.0 Compatible
 Fully updated and tested to ensure seamless performance with the latest Blender 5.0 release.
