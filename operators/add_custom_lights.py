@@ -107,7 +107,7 @@ class LIGHTING_OT_AddLinearGradientPlane(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.mesh.primitive_plane_add(align='WORLD', location=context.scene.cursor.location)
         plane_obj = context.active_object
-        plane_obj.name = "Linear_Gradient_Plane"
+        plane_obj.name = "L.Linear_Gradient"
         plane_obj.scale.x = self.plane_width
         plane_obj.scale.y = self.plane_length
 
@@ -210,7 +210,7 @@ class LIGHTING_OT_AddSphereGradientPlane(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.mesh.primitive_plane_add(align='WORLD', location=context.scene.cursor.location)
         plane_obj = context.active_object
-        plane_obj.name = "Sphere_Gradient_Plane"
+        plane_obj.name = "L.Sphere_Gradient"
         plane_obj.scale.x = self.plane_width
         plane_obj.scale.y = self.plane_length
 
