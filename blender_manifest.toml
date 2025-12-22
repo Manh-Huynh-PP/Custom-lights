@@ -25,7 +25,8 @@ type = "add-on"
 blender_version_min = "4.2.0"
 
 # License of the extension (SPDX identifier)
-license = "SPDX:GPL-2.0-or-later"
+permissions = ["network", "files"]
+license = ["SPDX:GPL-2.0-or-later"]
 
 # Tags for the extension
 tags = ["Lighting"]
