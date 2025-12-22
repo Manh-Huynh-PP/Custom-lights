@@ -8,6 +8,7 @@ bl_info = {
     "warning": "",
     "category": "Lighting",
     "doc_url": "",  # Add documentation link if available
+    "license": "GPL-2.0-or-later",
 }
 
 # Make sure to handle addon reloads correctly

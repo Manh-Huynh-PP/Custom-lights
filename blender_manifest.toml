@@ -1,0 +1,34 @@
+schema_version = "1.0.0"
+
+# ID of the extension (organization.project_name)
+id = "custom_light"
+
+# Version of the extension
+version = "2.0.0"
+
+# Name of the extension
+name = "Custom Light"
+
+# Short description of the extension
+tagline = "An addon to manage custom lights"
+
+# Maintainer of the extension
+maintainer = "Manh Huynh"
+
+# Type of the extension (add-on, theme, keymap...)
+type = "add-on"
+
+# Website for the extension (optional)
+# website = ""
+
+# Minimum Blender version required
+blender_version_min = "4.2.0"
+
+# License of the extension (SPDX identifier)
+license = "SPDX:GPL-2.0-or-later"
+
+# Tags for the extension
+tags = ["Lighting"]
+
+# Platforms supported by the extension (optional for pure Python)
+platforms = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"]
