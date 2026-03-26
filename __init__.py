@@ -2,27 +2,31 @@ bl_info = {
     "name": "Custom Light",
     "description": "An addon to manage custom lights",
     "author": "Manh Huynh",
-    "version": (2, 0, 0),  # Version bump for refactor
-    "blender": (3, 0, 0),
+    "version": (2, 0, 1),
+    "blender": (4, 2, 0),
     "location": "View3D > Sidebar > Custom Lights",
     "warning": "",
     "category": "Lighting",
-    "doc_url": "",  # Add documentation link if available
+    "doc_url": "",
     "license": "GPL-2.0-or-later",
 }
 
-# Make sure to handle addon reloads correctly
+import bpy
+
+# Import submodules FIRST to ensure they are available in the package namespace
+# before any reloads are attempted. This prevents circular import errors
+# where a submodule tries to import from the parent package during reload.
 if "bpy" in locals():
     import importlib
-    if "operators" in locals():
-        importlib.reload(operators)
-    if "panels" in locals():
-        importlib.reload(panels)
-    if "utils" in locals():
-        importlib.reload(utils)
-
-import bpy
-from . import operators, panels, utils
+    from . import utils
+    from . import operators
+    from . import panels
+    
+    importlib.reload(utils)
+    importlib.reload(operators)
+    importlib.reload(panels)
+else:
+    from . import utils, operators, panels
 
 # Combine all classes from submodules
 classes = (
