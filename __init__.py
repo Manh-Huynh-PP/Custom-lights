@@ -2,7 +2,7 @@ bl_info = {
     "name": "Custom Light",
     "description": "An addon to manage custom lights",
     "author": "Manh Huynh",
-    "version": (2, 0, 1),
+    "version": (2, 0, 2),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > Custom Lights",
     "warning": "",
@@ -56,8 +56,7 @@ def register():
         if self.get("_skip_update"):
             return
         multiplier = self.light_brightness_multiplier
-        if multiplier != 1.0:  # Only apply if not default
-            utils.apply_collection_brightness(self, multiplier)
+        utils.apply_collection_brightness(self, multiplier)
     
     bpy.types.Collection.light_brightness_multiplier = bpy.props.FloatProperty(
         name="Multiply",

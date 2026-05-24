@@ -34,14 +34,19 @@ def add_object_to_collection(context, obj, collection_name):
         if obj.name not in target_collection.objects:
             target_collection.objects.link(obj)
     else:
-        # Auto-collection is OFF: Link directly to the scene collection
-        if obj.name not in scene.collection.objects:
-            scene.collection.objects.link(obj)
+        # Auto-collection is OFF: Link directly to the active collection
+        target_collection = context.collection
+        if obj.name not in target_collection.objects:
+            target_collection.objects.link(obj)
 
     # Make the new object active and selected
-    bpy.ops.object.select_all(action='DESELECT')
-    context.view_layer.objects.active = obj
-    obj.select_set(True)
+    try:
+        bpy.ops.object.select_all(action='DESELECT')
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+    except RuntimeError:
+        # This can happen if target_collection is excluded from the view layer
+        pass
 
 def get_all_collections(root_collection):
     """Recursively collects all child collections of root_collection."""
@@ -177,48 +182,29 @@ def update_spot_power(self, context):
     if obj and obj.type == 'LIGHT':
         obj.data.energy = self.spot_power
 
-def update_emission_color(scene):
+def update_emission_color(scene, depsgraph=None):
     """Handler to sync a spotlight's emission node color with its data.color."""
-    # Using bpy.context.scene is more reliable in handlers
-    if not bpy.context.scene:
+    if not depsgraph:
         return
         
-    for obj in bpy.context.scene.objects:
-        if obj.type == 'LIGHT' and obj.data.type == 'SPOT' and obj.data.use_nodes:
-            nt = obj.data.node_tree
+    for update in depsgraph.updates:
+        id_data = update.id
+        light = None
+        if isinstance(id_data, bpy.types.Light):
+            light = id_data
+        elif isinstance(id_data, bpy.types.Object) and id_data.type == 'LIGHT':
+            light = id_data.data
+            
+        if light and light.type == 'SPOT' and light.use_nodes:
+            nt = light.node_tree
             if nt:
                 for node in nt.nodes:
                     if node.type == 'EMISSION':
                         # Sync color
-                        node.inputs["Color"].default_value = (*obj.data.color, 1)
+                        node.inputs["Color"].default_value = (*light.color, 1)
                         break
 
-# Storage for tracking previous multiplier values
-_prev_brightness_multipliers = {}
 
-def update_collection_brightness(scene):
-    """Handler to apply brightness multiplier when it changes."""
-    if not bpy.context.scene:
-        return
-    
-    # Check scene collection
-    scene_coll = bpy.context.scene.collection
-    _check_and_apply_brightness(scene_coll, "MASTER")
-    
-    # Check all other collections
-    for coll in get_all_collections(scene_coll):
-        _check_and_apply_brightness(coll, coll.name)
-
-def _check_and_apply_brightness(coll, coll_key):
-    """Check if multiplier changed and apply if so."""
-    global _prev_brightness_multipliers
-    
-    current = coll.get("brightness_multiplier", 1.0)
-    prev = _prev_brightness_multipliers.get(coll_key, 1.0)
-    
-    if abs(current - prev) > 0.0001:  # Changed
-        _prev_brightness_multipliers[coll_key] = current
-        apply_collection_brightness(coll, current)
 
 def get_world_background_node(world):
     """Gets the Background node from the world's node tree."""
@@ -286,16 +272,17 @@ def apply_collection_brightness(coll, multiplier):
         
         # Initialize base if not exists
         if "_base_energy" not in obj:
-            obj["_base_energy"] = current
-        
-        base = obj.get("_base_energy", current)
+            base = current / last_mult if last_mult > 0 else current
+            obj["_base_energy"] = base
+        else:
+            base = obj["_base_energy"]
         
         # Check if user manually changed this light
         expected = base * last_mult
         if abs(current - expected) > 0.001:
-            # User changed this light individually, update its base
-            obj["_base_energy"] = current
-            base = current
+            # User changed this light individually, calculate new relative base
+            base = current / last_mult if last_mult > 0 else current
+            obj["_base_energy"] = base
         
         # Apply multiplier from base
         new_value = base * multiplier
