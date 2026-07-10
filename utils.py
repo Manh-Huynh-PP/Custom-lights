@@ -8,13 +8,36 @@ from mathutils import Vector
 # ---------------------------------------------------
 
 def create_or_get_collection(parent_collection, collection_name):
-    """Creates a new collection or gets an existing one."""
+    """Creates a new collection or gets an existing one, avoiding duplicate naming."""
+    # 1. Check if the collection is already linked as a child of parent_collection
     if collection_name in parent_collection.children:
         return parent_collection.children[collection_name]
-    else:
-        new_collection = bpy.data.collections.new(collection_name)
-        parent_collection.children.link(new_collection)
-        return new_collection
+        
+    # 2. Check if the collection exists globally in bpy.data.collections
+    if collection_name in bpy.data.collections:
+        existing_coll = bpy.data.collections[collection_name]
+        # Link it to the parent if not already linked
+        if existing_coll.name not in parent_collection.children:
+            parent_collection.children.link(existing_coll)
+        return existing_coll
+        
+    # 3. Create a new collection and link it to the parent
+    new_collection = bpy.data.collections.new(collection_name)
+    parent_collection.children.link(new_collection)
+    return new_collection
+
+def get_target_parent_collection(context):
+    """Retrieves or creates the parent collection based on scene properties."""
+    scene = context.scene
+    if scene.custom_light_auto_collection:
+        if scene.custom_light_target_coll_type == 'EXISTING' and scene.custom_light_target_coll_ptr:
+            return scene.custom_light_target_coll_ptr
+        else:
+            name = scene.custom_light_target_coll_name.strip()
+            if not name:
+                name = "Custom Lights"
+            return create_or_get_collection(scene.collection, name)
+    return context.collection
 
 def add_object_to_collection(context, obj, collection_name):
     """
@@ -28,9 +51,24 @@ def add_object_to_collection(context, obj, collection_name):
         coll.objects.unlink(obj)
 
     if scene.custom_light_auto_collection:
-        # Auto-collection is ON: Create "Custom Lights" -> sub-collection structure
-        root_coll = create_or_get_collection(scene.collection, "Custom Lights")
-        target_collection = create_or_get_collection(root_coll, collection_name)
+        # Get target parent collection (e.g., "Custom Lights" or user chosen)
+        parent_coll = get_target_parent_collection(context)
+        
+        # Ensure parent collection is active/included in the view layer!
+        # This solves the user's logic requirements when the collection is excluded or unactive
+        lc = find_layer_collection(context.view_layer.layer_collection, parent_coll)
+        if lc:
+            lc.exclude = False
+            lc.hide_viewport = False
+            
+        target_collection = create_or_get_collection(parent_coll, collection_name)
+        
+        # Also ensure sub-collection is active/included
+        lc_sub = find_layer_collection(context.view_layer.layer_collection, target_collection)
+        if lc_sub:
+            lc_sub.exclude = False
+            lc_sub.hide_viewport = False
+            
         if obj.name not in target_collection.objects:
             target_collection.objects.link(obj)
     else:
@@ -42,10 +80,10 @@ def add_object_to_collection(context, obj, collection_name):
     # Make the new object active and selected
     try:
         bpy.ops.object.select_all(action='DESELECT')
+        scene["bypass_auto_solo"] = True
         context.view_layer.objects.active = obj
         obj.select_set(True)
     except RuntimeError:
-        # This can happen if target_collection is excluded from the view layer
         pass
 
 def get_all_collections(root_collection):
@@ -204,6 +242,50 @@ def update_emission_color(scene, depsgraph=None):
                         node.inputs["Color"].default_value = (*light.color, 1)
                         break
 
+_last_active_obj_name = None
+
+def run_auto_solo_timer():
+    try:
+        context = bpy.context
+        if not context or not hasattr(context, "scene") or not context.scene:
+            return None
+        scene = context.scene
+        
+        # Check if we should bypass auto solo
+        if scene.get("bypass_auto_solo", False):
+            scene["bypass_auto_solo"] = False
+            return None
+            
+        active_obj = context.active_object
+        
+        # Check if the active object is a managed light
+        if active_obj and is_managed_light(active_obj):
+            if scene.custom_light_solo_active and scene.custom_light_solo_light != active_obj.name:
+                toggle_solo_light(scene, active_obj)
+        else:
+            if scene.custom_light_solo_active:
+                restore_light_visibility(scene)
+    except Exception as e:
+        print(f"Error in auto solo timer: {e}")
+    return None
+
+def auto_solo_handler(scene, depsgraph=None):
+    global _last_active_obj_name
+    
+    context = bpy.context
+    if not context or not hasattr(context, "view_layer"):
+        return
+        
+    active_obj = context.view_layer.objects.active
+    active_name = active_obj.name if active_obj else None
+    
+    if active_name != _last_active_obj_name:
+        _last_active_obj_name = active_name
+        # Schedule the update outside the depsgraph evaluation context
+        if not bpy.app.timers.is_registered(run_auto_solo_timer):
+            bpy.app.timers.register(run_auto_solo_timer, first_interval=0.01)
+
+
 
 
 def get_world_background_node(world):
@@ -290,3 +372,209 @@ def apply_collection_brightness(coll, multiplier):
     
     # Store current multiplier for next comparison
     coll["_last_multiplier"] = multiplier
+
+
+# ---------------------------------------------------
+# View Layer and Collection State Helpers
+# ---------------------------------------------------
+
+def find_layer_collection(layer_collection, collection):
+    """Recursively find the layer collection corresponding to a collection."""
+    if layer_collection.collection == collection:
+        return layer_collection
+    for child in layer_collection.children:
+        found = find_layer_collection(child, collection)
+        if found:
+            return found
+    return None
+
+def is_collection_excluded(context, collection):
+    """Checks if a collection is excluded in the active view layer."""
+    lc = find_layer_collection(context.view_layer.layer_collection, collection)
+    if lc:
+        return lc.exclude
+    return False
+
+
+# ---------------------------------------------------
+# Solo / Isolate Light Helpers
+# ---------------------------------------------------
+
+def get_all_managed_lights(scene):
+    """Gets all managed light objects in the scene."""
+    all_lights = []
+    for obj in scene.objects:
+        if is_managed_light(obj):
+            all_lights.append(obj)
+    return all_lights
+
+def toggle_solo_light(scene, target_obj):
+    """Toggles solo mode for a specific light object."""
+    if scene.custom_light_solo_active and scene.custom_light_solo_light == target_obj.name:
+        restore_light_visibility(scene)
+    else:
+        if scene.custom_light_solo_active:
+            restore_light_visibility(scene)
+            
+        all_lights = get_all_managed_lights(scene)
+        for obj in all_lights:
+            if obj == target_obj:
+                continue
+            obj["_prev_hide_viewport"] = obj.hide_viewport
+            obj["_prev_hide_render"] = obj.hide_render
+            obj["_prev_hide_get"] = obj.hide_get()
+            
+            obj.hide_viewport = True
+            obj.hide_render = True
+            obj.hide_set(True)
+            
+        target_obj.hide_viewport = False
+        target_obj.hide_render = False
+        target_obj.hide_set(False)
+        
+        scene.custom_light_solo_active = True
+        scene.custom_light_solo_light = target_obj.name
+        
+        # Force dependency graph / viewport update
+        bpy.context.view_layer.update()
+
+def restore_light_visibility(scene):
+    """Restores the previous visibility states of all lights."""
+    all_lights = get_all_managed_lights(scene)
+    for obj in all_lights:
+        if "_prev_hide_viewport" in obj:
+            obj.hide_viewport = obj["_prev_hide_viewport"]
+            del obj["_prev_hide_viewport"]
+        if "_prev_hide_render" in obj:
+            obj.hide_render = obj["_prev_hide_render"]
+            del obj["_prev_hide_render"]
+        if "_prev_hide_get" in obj:
+            obj.hide_set(obj["_prev_hide_get"])
+            del obj["_prev_hide_get"]
+            
+    scene.custom_light_solo_active = False
+    scene.custom_light_solo_light = ""
+    
+    # Force dependency graph / viewport update
+    bpy.context.view_layer.update()
+
+
+# ---------------------------------------------------
+# Gobo Node Parameter Helpers
+# ---------------------------------------------------
+
+def find_node_by_type(node_tree, node_type):
+    """Finds a node of a specific type in a node tree, recursively checking groups."""
+    if not node_tree:
+        return None
+    for node in node_tree.nodes:
+        # Check by type, bl_idname, or custom check for color ramp
+        if node_type in ('VAL_TO_RGB', 'VALTORGB'):
+            if node.type in ('VAL_TO_RGB', 'VALTORGB') or node.bl_idname == 'ShaderNodeValToRGB' or isinstance(getattr(node, 'color_ramp', None), bpy.types.ColorRamp):
+                return node
+        else:
+            if node.type == node_type or node.bl_idname == node_type:
+                return node
+                
+        # Recursively check groups
+        if hasattr(node, "node_tree") and node.node_tree:
+            found = find_node_by_type(node.node_tree, node_type)
+            if found:
+                return found
+    return None
+
+def get_gobo_nodes(obj):
+    """
+    Returns a dictionary of key nodes in a gobo light or mesh object,
+    or in its children if the object itself is not a gobo.
+    Only returns the dictionary if a ColorRamp (VAL_TO_RGB) node is present.
+    """
+    def extract_gobo_nodes(node_tree):
+        if not node_tree:
+            return None
+        
+        color_ramp = find_node_by_type(node_tree, 'VAL_TO_RGB')
+        if not color_ramp:
+            return None
+            
+        return {
+            'noise': find_node_by_type(node_tree, 'TEX_NOISE'),
+            'voronoi': find_node_by_type(node_tree, 'TEX_VORONOI'),
+            'wave': find_node_by_type(node_tree, 'TEX_WAVE'),
+            'image': find_node_by_type(node_tree, 'TEX_IMAGE'),
+            'color_ramp': color_ramp,
+            'mapping': find_node_by_type(node_tree, 'MAPPING'),
+            'emission': find_node_by_type(node_tree, 'EMISSION'),
+            'node_tree': node_tree
+        }
+
+    # 1. Check the object itself
+    if obj.type == 'LIGHT' and obj.data.use_nodes:
+        res = extract_gobo_nodes(obj.data.node_tree)
+        if res:
+            return res
+    elif obj.type == 'MESH':
+        mat = obj.active_material
+        if not mat and hasattr(obj.data, "materials") and obj.data.materials:
+            mat = obj.data.materials[0]
+        if mat and mat.use_nodes:
+            res = extract_gobo_nodes(mat.node_tree)
+            if res:
+                return res
+
+    # 2. Check the children of the object (e.g. parented plane gobo)
+    for child in obj.children:
+        if child.type == 'LIGHT' and child.data.use_nodes:
+            res = extract_gobo_nodes(child.data.node_tree)
+            if res:
+                return res
+        elif child.type == 'MESH':
+            mat = child.active_material
+            if not mat and hasattr(child.data, "materials") and child.data.materials:
+                mat = child.data.materials[0]
+            if mat and mat.use_nodes:
+                res = extract_gobo_nodes(mat.node_tree)
+                if res:
+                    return res
+
+    return None
+
+
+def get_or_create_world_mapping_node(world):
+    """Gets or creates the Mapping and Texture Coordinate nodes for the world's Environment Texture."""
+    if not world or not world.use_nodes or not world.node_tree:
+        return None
+        
+    nt = world.node_tree
+    
+    # 1. Find the Mapping node if it exists
+    for node in nt.nodes:
+        if node.type == 'MAPPING':
+            return node
+            
+    # 2. If not, find the Environment Texture node
+    env_tex = None
+    for node in nt.nodes:
+        if node.type == 'TEX_ENVIRONMENT':
+            env_tex = node
+            break
+            
+    if env_tex:
+        # Create Mapping node
+        mapping = nt.nodes.new(type='ShaderNodeMapping')
+        mapping.location = (env_tex.location[0] - 200, env_tex.location[1])
+        
+        # Link Mapping to Env Tex
+        nt.links.new(mapping.outputs['Vector'], env_tex.inputs['Vector'])
+        
+        # Create Texture Coordinate node
+        tex_coord = next((n for n in nt.nodes if n.type == 'TEX_COORD'), None)
+        if not tex_coord:
+            tex_coord = nt.nodes.new(type='ShaderNodeTexCoord')
+            tex_coord.location = (mapping.location[0] - 200, mapping.location[1])
+            
+        # Link Generated to Vector
+        nt.links.new(tex_coord.outputs['Generated'], mapping.inputs['Vector'])
+        return mapping
+        
+    return None

@@ -4,7 +4,7 @@ schema_version = "1.0.0"
 id = "custom_light"
 
 # Version of the extension
-version = "2.0.2"
+version = "2.1.5"
 
 # Name of the extension
 name = "Custom Light"
@@ -19,7 +19,7 @@ maintainer = "Manh Huynh"
 type = "add-on"
 
 # Website for the extension (optional)
-# website = ""
+website = "https://github.com/Manh-Huynh-PP/Custom-lights"
 
 # Minimum Blender version required
 blender_version_min = "4.2.0"

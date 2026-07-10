@@ -11,7 +11,7 @@ class LIGHTING_OT_AddTrackerLights(bpy.types.Operator):
     bl_label = "Tracker Lights"
     bl_options = {'REGISTER', 'UNDO'}
 
-    num_lights: bpy.props.IntProperty(name="Number of Lights", default=1, min=1, max=10)
+    num_lights: bpy.props.IntProperty(name="Number of Lights", default=3, min=1, max=10)
     light_intensity: bpy.props.FloatProperty(name="Light Intensity (W)", default=30)
     light_distance: bpy.props.FloatProperty(name="Light Distance", default=5)
     light_width: bpy.props.FloatProperty(name="Light Width", default=1)
@@ -24,7 +24,7 @@ class LIGHTING_OT_AddTrackerLights(bpy.types.Operator):
             self.report({'WARNING'}, "No target object selected!")
             return {'CANCELLED'}
         center = target.location
-        collection_name = "Tracker Lights"
+        collection_name = "Base Lights"
 
         empty = bpy.data.objects.new("Light_Target", None)
         empty.empty_display_type = 'PLAIN_AXES'
@@ -176,7 +176,7 @@ class LIGHTING_OT_AddLinearGradientPlane(bpy.types.Operator):
         
         plane_obj.data.materials.append(mat)
         plane_obj.visible_camera = self.camera_visibility
-        utils.add_object_to_collection(context, plane_obj, "Gradient Light Planes")
+        utils.add_object_to_collection(context, plane_obj, "Studio Planes")
         self.report({'INFO'}, "Linear Gradient Plane Added!")
         return {'FINISHED'}
 
@@ -273,7 +273,7 @@ class LIGHTING_OT_AddSphereGradientPlane(bpy.types.Operator):
         
         plane_obj.data.materials.append(mat)
         plane_obj.visible_camera = self.camera_visibility
-        utils.add_object_to_collection(context, plane_obj, "Gradient Light Planes")
+        utils.add_object_to_collection(context, plane_obj, "Studio Planes")
         self.report({'INFO'}, "Sphere Gradient Plane Added!")
         return {'FINISHED'}
 
@@ -331,7 +331,7 @@ class LIGHTING_OT_AddTranslucentLight(bpy.types.Operator):
         
         plane.parent = active
         plane.matrix_parent_inverse = active.matrix_world.inverted()
-        utils.add_object_to_collection(context, plane, "Translucent Planes")
+        utils.add_object_to_collection(context, plane, "Studio Planes")
         return {'FINISHED'}
 
 class LIGHTING_OT_AddSimpleGodRays(bpy.types.Operator):
@@ -449,7 +449,7 @@ class LIGHTING_OT_AddSimpleGodRays(bpy.types.Operator):
         
         cone_obj.parent = spotlight
         cone_obj.matrix_parent_inverse = spotlight.matrix_world.inverted()
-        utils.add_object_to_collection(context, cone_obj, "God Rays")
+        utils.add_object_to_collection(context, cone_obj, "Env & Effects")
         return {'FINISHED'}
 
 class LIGHTING_OT_ImportDomeLight(bpy.types.Operator):
@@ -496,7 +496,7 @@ class LIGHTING_OT_ImportDomeLight(bpy.types.Operator):
             obj.scale = (scale_factor, scale_factor, scale_factor)
             
             # Add to collection (respects auto-collection setting)
-            utils.add_object_to_collection(context, obj, "Dome Lights")
+            utils.add_object_to_collection(context, obj, "Env & Effects")
             
             # Update Material
             if obj.data.materials:
@@ -605,7 +605,7 @@ class LIGHTING_OT_ImportNoiseGobo(bpy.types.Operator):
                             math_node.inputs[1].default_value = self.strength
             
             # Add to collection (respects auto-collection setting)
-            utils.add_object_to_collection(context, obj, "Noise Gobo Lights")
+            utils.add_object_to_collection(context, obj, "Gobo Lights")
             
             self.report({'INFO'}, "Successfully imported Noise_gobo")
             return {'FINISHED'}
@@ -683,7 +683,7 @@ class LIGHTING_OT_ImportImageGobo(bpy.types.Operator):
                             math_node.inputs[1].default_value = self.strength
             
             # Add to collection (respects auto-collection setting)
-            utils.add_object_to_collection(context, obj, "Image Gobo Lights")
+            utils.add_object_to_collection(context, obj, "Gobo Lights")
             
             self.report({'INFO'}, "Successfully imported Image_Gobo")
             return {'FINISHED'}
@@ -751,7 +751,7 @@ class LIGHTING_OT_ImportPlaneGoboNoise(bpy.types.Operator):
             obj.matrix_parent_inverse = active.matrix_world.inverted()
 
             # Add to collection
-            utils.add_object_to_collection(context, obj, "Plane Gobo Lights")
+            utils.add_object_to_collection(context, obj, "Gobo Lights")
 
             self.report({'INFO'}, "Plane Gobo Noise added!")
             return {'FINISHED'}
@@ -819,7 +819,7 @@ class LIGHTING_OT_ImportPlaneGoboVoronoise(bpy.types.Operator):
             obj.matrix_parent_inverse = active.matrix_world.inverted()
 
             # Add to collection
-            utils.add_object_to_collection(context, obj, "Plane Gobo Lights")
+            utils.add_object_to_collection(context, obj, "Gobo Lights")
 
             self.report({'INFO'}, "Plane Gobo Voronoise added!")
             return {'FINISHED'}
@@ -887,7 +887,7 @@ class LIGHTING_OT_ImportPlaneGoboWave(bpy.types.Operator):
             obj.matrix_parent_inverse = active.matrix_world.inverted()
 
             # Add to collection
-            utils.add_object_to_collection(context, obj, "Plane Gobo Lights")
+            utils.add_object_to_collection(context, obj, "Gobo Lights")
 
             self.report({'INFO'}, "Plane Gobo Wave added!")
             return {'FINISHED'}
