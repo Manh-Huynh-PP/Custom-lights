@@ -92,6 +92,17 @@ class LIGHTING_OT_QuickAdjustMenu(bpy.types.Operator):
         default=True
     )
 
+    gradient_flip: bpy.props.BoolProperty(
+        name="Flip Gradient",
+        description="Flip the gradient color stops",
+        default=False
+    )
+    gradient_rotate: bpy.props.BoolProperty(
+        name="Rotate Gradient",
+        description="Toggle gradient rotation between X and Y axes",
+        default=False
+    )
+
     light_energy: bpy.props.FloatProperty(
         name="Energy/Strength", 
         default=1.0, 
@@ -251,6 +262,54 @@ class LIGHTING_OT_QuickAdjustMenu(bpy.types.Operator):
                 obj.visible_volume_scatter = self.mesh_visible_volume
                 obj.visible_shadow = self.mesh_visible_shadow
         
+        # Apply gradient flip/rotate for the primary active object
+        if hasattr(self, '_init_ramp_color_0') and self._init_ramp_color_0 is not None:
+            obj = context.active_object
+            if obj:
+                nodes_dict = utils.get_gobo_nodes(obj)
+                if nodes_dict:
+                    color_ramp = nodes_dict.get('color_ramp')
+                    if color_ramp and hasattr(color_ramp, 'color_ramp') and color_ramp.color_ramp:
+                        if len(color_ramp.color_ramp.elements) >= 2:
+                            if self.gradient_flip:
+                                color_ramp.color_ramp.elements[0].color = self._init_ramp_color_1
+                                color_ramp.color_ramp.elements[1].color = self._init_ramp_color_0
+                            else:
+                                color_ramp.color_ramp.elements[0].color = self._init_ramp_color_0
+                                color_ramp.color_ramp.elements[1].color = self._init_ramp_color_1
+
+        if hasattr(self, '_init_gradient_axis') and self._init_gradient_axis is not None:
+            obj = context.active_object
+            if obj:
+                nodes_dict = utils.get_gobo_nodes(obj)
+                if nodes_dict:
+                    node_tree = nodes_dict.get('node_tree')
+                    if node_tree:
+                        sep_xyz = None
+                        gradient = None
+                        for node in node_tree.nodes:
+                            if node.type == 'SEPARATE_XYZ' or node.bl_idname == 'ShaderNodeSeparateXYZ':
+                                sep_xyz = node
+                            elif node.type == 'TEX_GRADIENT' or node.bl_idname == 'ShaderNodeTexGradient':
+                                gradient = node
+                        if sep_xyz and gradient:
+                            target_axis = self._init_gradient_axis
+                            if self.gradient_rotate:
+                                target_axis = 'Y' if self._init_gradient_axis == 'X' else 'X'
+                            input_sock = gradient.inputs.get('Vector') or gradient.inputs[0]
+                            # Check current connection and fix if needed
+                            current_axis = None
+                            current_link = None
+                            for link in node_tree.links:
+                                if link.to_socket == input_sock:
+                                    current_axis = link.from_socket.name
+                                    current_link = link
+                                    break
+                            if current_axis != target_axis:
+                                if current_link:
+                                    node_tree.links.remove(current_link)
+                                node_tree.links.new(sep_xyz.outputs[target_axis], input_sock)
+
         # Force viewport update for all areas
         for window in context.window_manager.windows:
             for area in window.screen.areas:
@@ -411,6 +470,37 @@ class LIGHTING_OT_QuickAdjustMenu(bpy.types.Operator):
         is_this_solo = context.scene.custom_light_solo_active and context.scene.custom_light_solo_light == primary_obj.name
         self.solo_active_toggle = is_this_solo
         
+        # Initialize gradient flip/rotate state
+        self.gradient_flip = False
+        self.gradient_rotate = False
+        self._init_ramp_color_0 = None
+        self._init_ramp_color_1 = None
+        self._init_gradient_axis = None
+        
+        nodes_dict = utils.get_gobo_nodes(primary_obj)
+        if nodes_dict:
+            color_ramp = nodes_dict.get('color_ramp')
+            if color_ramp and hasattr(color_ramp, 'color_ramp') and color_ramp.color_ramp:
+                if len(color_ramp.color_ramp.elements) >= 2:
+                    self._init_ramp_color_0 = tuple(color_ramp.color_ramp.elements[0].color)
+                    self._init_ramp_color_1 = tuple(color_ramp.color_ramp.elements[1].color)
+            
+            node_tree = nodes_dict.get('node_tree')
+            if node_tree:
+                sep_xyz = None
+                gradient_node = None
+                for node in node_tree.nodes:
+                    if node.type == 'SEPARATE_XYZ' or node.bl_idname == 'ShaderNodeSeparateXYZ':
+                        sep_xyz = node
+                    elif node.type == 'TEX_GRADIENT' or node.bl_idname == 'ShaderNodeTexGradient':
+                        gradient_node = node
+                if sep_xyz and gradient_node:
+                    input_sock = gradient_node.inputs.get('Vector') or gradient_node.inputs[0]
+                    for link in node_tree.links:
+                        if link.to_socket == input_sock:
+                            self._init_gradient_axis = link.from_socket.name
+                            break
+        
         return context.window_manager.invoke_props_popup(self, event)
 
     def check(self, context):
@@ -491,9 +581,9 @@ class LIGHTING_OT_QuickAdjustMenu(bpy.types.Operator):
                 layout.separator()
                 row_grad = layout.row(align=True)
                 if has_flip:
-                    row_grad.operator("lighting.flip_gradient", text="Flip Gradient", icon='FILE_REFRESH')
+                    row_grad.prop(self, "gradient_flip", text="Flip Gradient", toggle=True, icon='FILE_REFRESH')
                 if has_rotate:
-                    row_grad.operator("lighting.rotate_gradient", text="Rotate Gradient", icon='FILE_REFRESH')
+                    row_grad.prop(self, "gradient_rotate", text="Rotate Gradient", toggle=True, icon='FILE_REFRESH')
             
             # Draw Ray Visibility at the bottom of single light popup
             if obj.type == 'LIGHT' and hasattr(obj.data, "cycles"):
