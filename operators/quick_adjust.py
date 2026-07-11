@@ -613,59 +613,10 @@ class LIGHTING_OT_QuickAdjustMenu(bpy.types.Operator):
 
     def cancel(self, context):
         """Revert changes when the user cancels the popup"""
-        if hasattr(self, "init_values"):
-            for name, vals in self.init_values.items():
-                obj = context.scene.objects.get(name)
-                if not obj:
-                    continue
-                
-                if obj.type == 'LIGHT':
-                    obj.data.energy = vals['energy']
-                    obj.data.color = vals['color']
-                    if obj.data.type == 'AREA':
-                        obj.data.size = vals['size']
-                        obj.data.size_y = vals['size_y']
-                    elif obj.data.type == 'SPOT':
-                        obj.data.spot_size = vals['spot_size']
-                        obj.data.spot_blend = vals['spot_blend']
-                    elif obj.data.type == 'POINT':
-                        obj.data.shadow_soft_size = vals['shadow_soft_size']
-                    
-                    # Restore Cycles ray visibility
-                    if hasattr(obj.data, "cycles"):
-                        cycles_data = obj.data.cycles
-                        if hasattr(cycles_data, "use_camera"):
-                            cycles_data.use_camera = vals.get('visible_camera', True)
-                        if hasattr(cycles_data, "use_diffuse"):
-                            cycles_data.use_diffuse = vals.get('visible_diffuse', True)
-                        if hasattr(cycles_data, "use_glossy"):
-                            cycles_data.use_glossy = vals.get('visible_glossy', True)
-                        if hasattr(cycles_data, "use_transmission"):
-                            cycles_data.use_transmission = vals.get('visible_transmission', True)
-                        if hasattr(cycles_data, "use_volume"):
-                            cycles_data.use_volume = vals.get('visible_volume', True)
-                        if hasattr(cycles_data, "cast_shadow"):
-                            cycles_data.cast_shadow = vals.get('visible_shadow', True)
-                elif obj.type == 'MESH':
-                    strength_socket = utils.get_mesh_emission_strength_control(obj)
-                    if strength_socket:
-                        strength_socket.default_value = vals['energy']
-                    color_socket = utils.get_mesh_emission_control(obj)
-                    if color_socket:
-                        color_socket.default_value = vals['color']
-                    obj.display_type = vals['display_type']
-                    obj.visible_camera = vals['visible_camera']
-                    obj.visible_diffuse = vals['visible_diffuse']
-                    obj.visible_glossy = vals['visible_glossy']
-                    obj.visible_transmission = vals['visible_transmission']
-                    obj.visible_volume_scatter = vals['visible_volume']
-                    obj.visible_shadow = vals['visible_shadow']
-            
-            # Force viewport redraw
-            for window in context.window_manager.windows:
-                for area in window.screen.areas:
-                    if area.type == 'VIEW_3D':
-                        area.tag_redraw()
+        # Rely on Blender's native Undo system ('UNDO' option in bl_options)
+        # to revert changes if the user presses Ctrl+Z. This prevents changes from 
+        # being lost when the popup is dismissed by clicking other buttons (like Rotate/Flip).
+        pass
 
 class LIGHTING_OT_FlipGradient(bpy.types.Operator):
     """Flip the active light's gradient color stops"""
