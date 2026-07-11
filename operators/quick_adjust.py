@@ -697,7 +697,7 @@ class LIGHTING_OT_RotateGradient(bpy.types.Operator):
                         gradient = node
                 
                 if sep_xyz and gradient:
-                    input_sock = gradient.inputs[0]
+                    input_sock = gradient.inputs.get('Vector') or gradient.inputs[0]
                     current_link = None
                     for link in node_tree.links:
                         if link.to_socket == input_sock:
@@ -705,9 +705,9 @@ class LIGHTING_OT_RotateGradient(bpy.types.Operator):
                             break
                     
                     if current_link:
-                        from_socket = current_link.from_socket
+                        from_socket_name = current_link.from_socket.name
                         node_tree.links.remove(current_link)
-                        if from_socket.name == 'X':
+                        if from_socket_name == 'X':
                             node_tree.links.new(sep_xyz.outputs['Y'], input_sock)
                         else:
                             node_tree.links.new(sep_xyz.outputs['X'], input_sock)
