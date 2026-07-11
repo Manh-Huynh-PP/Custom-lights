@@ -22,10 +22,20 @@ class LIGHTING_MT_ViewportPieMenu(bpy.types.Menu):
         pie.operator("lighting.add_area_rectangle_light", text="Area Light", icon='LIGHT_AREA')
         
         # 3. Bottom (South)
-        if active_obj and active_obj.type == 'MESH' and len(selected_objs) >= 2:
-            pie.operator("lighting.track_to_selected", text="Track to Selected", icon='TRACKING')
-        else:
-            pie.column()
+        col = pie.column()
+        show_any = False
+        
+        if active_obj and active_obj.type == 'MESH':
+            if len(selected_objs) >= 2:
+                col.operator("lighting.track_to_selected", text="Track to Selected", icon='TRACKING')
+                show_any = True
+            
+            if not utils.is_managed_light(active_obj):
+                col.operator("lighting.make_emission_mesh", text="Make Emission Mesh", icon='SOLO_ON')
+                show_any = True
+                
+        if not show_any:
+            col.column()
         
         # 4. Top (North)
         pie.operator("lighting.add_tracker_lights", text="Tracker Light", icon='LIGHT')
